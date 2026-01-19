@@ -10,6 +10,11 @@
     "https://lettertrackpro.com/*",
     "https://www.lettertrackpro.com/*"
   ],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon16.png",
+    "128": "icon16.png"
+  },
   "content_scripts": [
     {
       "matches": [
