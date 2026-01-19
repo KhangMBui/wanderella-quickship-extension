@@ -1,0 +1,31 @@
+{
+  "name": "Wanderella QuickShip",
+  "version": "0.1.0",
+  "manifest_version": 3,
+  "description": "Copy destination address from WooCommerce shipping label modal and paste into LetterTrack.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://wanderella.co/*",
+    "https://www.wanderella.co/*",
+    "https://lettertrackpro.com/*",
+    "https://www.lettertrackpro.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://wanderella.co/wp-admin/*",
+        "https://www.wanderella.co/wp-admin/*"
+      ],
+      "js": ["content_wanderella.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://lettertrackpro.com/*",
+        "https://www.lettertrackpro.com/*"
+      ],
+      "js": ["content_lettertrack.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
