@@ -64,10 +64,14 @@
         );
         setValue(document.getElementById("Zip_DA"), wl_destination.postalCode);
 
-        // ✅ Order Number field (LetterTrackPro)
         setValue(
           document.getElementById("OrderNumber"),
           wl_destination.orderNumber,
+        );
+
+        setValue(
+          document.getElementById("RecipientEmail"),
+          wl_destination.email,
         );
 
         alert("Destination + Order # pasted ✅");

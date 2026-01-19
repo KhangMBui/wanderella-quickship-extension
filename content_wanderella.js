@@ -16,6 +16,23 @@
     return m ? m[1] : "";
   }
 
+  function readEmail() {
+    // Matches: <strong>Email address:</strong> <a href="mailto:...">...</a>
+    const addrBlocks = Array.from(document.querySelectorAll("div.address"));
+    for (const block of addrBlocks) {
+      const strongs = Array.from(block.querySelectorAll("strong"));
+      const emailLabel = strongs.find(
+        (s) => (s.textContent || "").trim().toLowerCase() === "email address:",
+      );
+      if (!emailLabel) continue;
+
+      const a = emailLabel.parentElement?.querySelector('a[href^="mailto:"]');
+      const email = (a?.textContent || "").trim();
+      if (email) return email;
+    }
+    return "";
+  }
+
   function pickDestinationFromArgs(args) {
     // Prefer explicit shipping address (good structure)
     const ship = args?.order?.shipping_address;
@@ -104,6 +121,7 @@
     btn.addEventListener("click", async () => {
       const destination = readDestination();
       const orderNumber = readOrderNumber();
+      const email = readEmail();
       if (!destination) {
         alert(
           "Could not find destination address data. Make sure the Shipping Label section is visible",
@@ -116,7 +134,7 @@
         console.warn("Could not read order number from heading.");
       }
 
-      const payload = { ...destination, orderNumber };
+      const payload = { ...destination, orderNumber, email };
 
       chrome.storage.local.set(
         { wl_destination: payload, wl_savedAt: Date.now() },
@@ -128,7 +146,7 @@
             return;
           }
           alert(
-            `Destination copied ✅\nOrder #${orderNumber || "(not found)"}`,
+            `Destination copied ✅\nOrder #${orderNumber || "(not found)"}\n${email || "(no email found)"}`,
           );
         },
       );
