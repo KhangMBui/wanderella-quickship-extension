@@ -1,6 +1,78 @@
 (function () {
   const BTN_ID = "wl-copy-destination-fab";
 
+  function decodeHtmlEntities(str) {
+    // data-args contains &quot; etc. This cnoverts it back into real JSON.
+    const txt = document.createElement("textarea");
+    txt.innerHTML = str;
+    return txt.value;
+  }
+
+  function pickDestinationFromArgs(args) {
+    // Prefer explicit shipping address (good structure)
+    const ship = args?.order?.shipping_address;
+    if (ship?.address_1 || ship?.postcode) {
+      return {
+        firstName: ship.first_name || "",
+        lastName: ship.last_name || "",
+        company: ship.company || "",
+        phone: args?.order?.billing_address?.phone || "",
+        address1: ship.address_1 || "",
+        address2: ship.address_2 || "",
+        city: ship.city || "",
+        state: ship.state || "",
+        postalCode: ship.postcode || "",
+        country: ship.country || "",
+      };
+    }
+
+    // Fallback: sometimes destination is in labelsState.destination
+    const dest = args?.labelsState?.destination;
+    if (dest?.address || dest?.postcode) {
+      const full = (dest.name || "").trim();
+      const [firstName, ...rest] = full.split(/\s+/);
+      return {
+        firstName: firstName || "",
+        lastName: rest.join(" "),
+        company: dest.company || "",
+        phone: dest.phone || "",
+        address1: dest.address || "",
+        address2: dest.address_2 || "",
+        city: dest.city || "",
+        state: dest.state || "",
+        postalCode: dest.postcode || "",
+        country: dest.country || "",
+      };
+    }
+
+    return null;
+  }
+
+  function readDestination() {
+    const el = document.querySelector(
+      ".wc-connect-create-shipping-label[data-args]",
+    );
+    if (!el) return null;
+
+    const raw = el.getAttribute("data-args");
+    if (!raw) return null;
+
+    const jsonStr = decodeHtmlEntities(raw);
+
+    let args;
+    try {
+      args = JSON.parse(jsonStr);
+    } catch (err) {
+      console.error(
+        "Failed to parse data-args JSON",
+        el,
+        jsonStr.slice(0, 200),
+      );
+      return null;
+    }
+    return pickDestinationFromArgs(args);
+  }
+
   function injectButton() {
     if (document.getElementById(BTN_ID)) return;
 
@@ -22,25 +94,26 @@
     `;
 
     btn.addEventListener("click", async () => {
-      // Placeholder data for now (will replace with real scraping from the modal)
-      const destination = {
-        fullName: "Allison Lee",
-        company: "PathCrusher",
-        phone: "4254140885",
-        address1: "4230 120TH AVE SE",
-        address2: "Apt101B",
-        city: "BELLEVUE",
-        stateRaw: "Washington",
-        postalCode: "98006-1188",
-        countryRaw: "United States (US)",
-      };
+      const destination = readDestination();
+      if (!destination) {
+        alert(
+          "Could not find destination address data. Make sure the Shipping Label section is visible",
+        );
+        return;
+      }
 
-      await chrome.storage.local.set({
-        wl_destination: destination,
-        wl_savedAt: Date.now(),
-      });
-
-      alert("Saved destination ✅ (placeholder)");
+      chrome.storage.local.set(
+        { wl_destination: destination, wl_savedAt: Date.now() },
+        () => {
+          const err = chrome.runtime?.lastError;
+          if (err) {
+            console.error("Storage set failed: ", err);
+            alert("Failed to save destination. Check console.");
+            return;
+          }
+          alert("Destination copied ✅");
+        },
+      );
     });
 
     document.body.appendChild(btn);
