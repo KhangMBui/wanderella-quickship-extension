@@ -1,6 +1,50 @@
 (function () {
   const BTN_ID = "wl-paste-destination-fab";
 
+  const UI = {
+    baseText: "Paste Destination",
+    successText: "Pasted ✅",
+    errorText: "Paste failed",
+    baseStyle: `
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 999999;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      background: white;
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+      font-size: 14px;
+    `,
+    okStyle: `
+      border: 1px solid #3aa655;
+      background: #e6f6ea;
+    `,
+    errStyle: `
+      border: 1px solid #d93025;
+      background: #fde8e6;
+    `,
+  };
+
+  function setButtonState(
+    btn,
+    { text, style, disable = false, autoResetMs = null },
+  ) {
+    btn.textContent = text;
+    btn.style.cssText = UI.baseStyle + style;
+    btn.disabled = disable;
+
+    if (autoResetMs) {
+      window.setTimeout(() => {
+        btn.textContent = UI.baseText;
+        btn.style.cssText = UI.baseStyle;
+        btn.disabled = false;
+      }, autoResetMs);
+    }
+  }
+
   function setValue(el, value) {
     if (!el) return;
     el.value = value ?? "";
@@ -24,57 +68,79 @@
 
     const btn = document.createElement("button");
     btn.id = BTN_ID;
-    btn.textContent = "Paste Destination";
-    btn.style.cssText = `
-      position: fixed; right: 16px; bottom: 16px; z-index: 999999;
-      padding: 10px 12px; border-radius: 10px; border: 1px solid #ccc;
-      background: white; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.12);
-      font-size: 14px;
-    `;
+    btn.textContent = UI.baseText;
+    btn.style.cssText = UI.baseStyle;
 
     btn.addEventListener("click", () => {
+      setButtonState(btn, { text: "Pasting…", style: "", disable: true });
+
       chrome.storage.local.get("wl_destination", ({ wl_destination }) => {
         if (!wl_destination) {
-          alert("No saved destination found. Copy it from Wanderella first.");
+          setButtonState(btn, {
+            text: "Copy first",
+            style: UI.errStyle,
+            disable: false,
+            autoResetMs: 1600,
+          });
           return;
         }
 
-        // Destination Address fields (LetterTrackPro)
-        setValue(
-          document.getElementById("FirstName_DA"),
-          wl_destination.firstName,
-        );
-        setValue(
-          document.getElementById("LastName_DA"),
-          wl_destination.lastName,
-        );
-        setValue(document.getElementById("Company_DA"), wl_destination.company);
-        setValue(
-          document.getElementById("Address1_DA"),
-          wl_destination.address1,
-        );
-        setValue(
-          document.getElementById("Address2_DA"),
-          wl_destination.address2,
-        );
-        setValue(document.getElementById("City_DA"), wl_destination.city);
-        setSelectByValueOrLabel(
-          document.getElementById("State_DA"),
-          wl_destination.state,
-        );
-        setValue(document.getElementById("Zip_DA"), wl_destination.postalCode);
+        try {
+          setValue(
+            document.getElementById("FirstName_DA"),
+            wl_destination.firstName,
+          );
+          setValue(
+            document.getElementById("LastName_DA"),
+            wl_destination.lastName,
+          );
+          setValue(
+            document.getElementById("Company_DA"),
+            wl_destination.company,
+          );
+          setValue(
+            document.getElementById("Address1_DA"),
+            wl_destination.address1,
+          );
+          setValue(
+            document.getElementById("Address2_DA"),
+            wl_destination.address2,
+          );
+          setValue(document.getElementById("City_DA"), wl_destination.city);
+          setSelectByValueOrLabel(
+            document.getElementById("State_DA"),
+            wl_destination.state,
+          );
+          setValue(
+            document.getElementById("Zip_DA"),
+            wl_destination.postalCode,
+          );
 
-        setValue(
-          document.getElementById("OrderNumber"),
-          wl_destination.orderNumber,
-        );
+          setValue(
+            document.getElementById("OrderNumber"),
+            wl_destination.orderNumber,
+          );
+          setValue(
+            document.getElementById("RecipientEmail"),
+            wl_destination.email,
+          );
+        } catch (e) {
+          console.error("Paste failed:", e);
+          setButtonState(btn, {
+            text: UI.errorText,
+            style: UI.errStyle,
+            disable: false,
+            autoResetMs: 1600,
+          });
+          return;
+        }
 
-        setValue(
-          document.getElementById("RecipientEmail"),
-          wl_destination.email,
-        );
-
-        alert("Destination + Order # pasted ✅");
+        // Success: persist green "Pasted ✅"
+        setButtonState(btn, {
+          text: UI.successText,
+          style: UI.okStyle,
+          disable: false,
+        });
       });
     });
 
