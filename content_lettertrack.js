@@ -64,7 +64,13 @@
         );
         setValue(document.getElementById("Zip_DA"), wl_destination.postalCode);
 
-        alert("Destination pasted ✅");
+        // ✅ Order Number field (LetterTrackPro)
+        setValue(
+          document.getElementById("OrderNumber"),
+          wl_destination.orderNumber,
+        );
+
+        alert("Destination + Order # pasted ✅");
       });
     });
 

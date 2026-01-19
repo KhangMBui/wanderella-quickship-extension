@@ -8,6 +8,14 @@
     return txt.value;
   }
 
+  function readOrderNumber() {
+    // Matches: "Order #29703 details"
+    const h2 = document.querySelector("h2.woocommerce-order-data__heading");
+    const text = (h2?.textContent || "").trim();
+    const m = text.match(/Order\s*#\s*(\d+)/i);
+    return m ? m[1] : "";
+  }
+
   function pickDestinationFromArgs(args) {
     // Prefer explicit shipping address (good structure)
     const ship = args?.order?.shipping_address;
@@ -95,6 +103,7 @@
 
     btn.addEventListener("click", async () => {
       const destination = readDestination();
+      const orderNumber = readOrderNumber();
       if (!destination) {
         alert(
           "Could not find destination address data. Make sure the Shipping Label section is visible",
@@ -102,8 +111,15 @@
         return;
       }
 
+      if (!orderNumber) {
+        // Not fatal; still save address
+        console.warn("Could not read order number from heading.");
+      }
+
+      const payload = { ...destination, orderNumber };
+
       chrome.storage.local.set(
-        { wl_destination: destination, wl_savedAt: Date.now() },
+        { wl_destination: payload, wl_savedAt: Date.now() },
         () => {
           const err = chrome.runtime?.lastError;
           if (err) {
@@ -111,7 +127,9 @@
             alert("Failed to save destination. Check console.");
             return;
           }
-          alert("Destination copied ✅");
+          alert(
+            `Destination copied ✅\nOrder #${orderNumber || "(not found)"}`,
+          );
         },
       );
     });
