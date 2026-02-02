@@ -70,13 +70,6 @@
     });
   }
 
-  // function decodeHtmlEntities(str) {
-  //   // data-args contains &quot; etc. This cnoverts it back into real JSON.
-  //   const txt = document.createElement("textarea");
-  //   txt.innerHTML = str;
-  //   return txt.value;
-  // }
-
   function readOrderNumber() {
     // Matches: "Order #29703 details"
     const h2 = document.querySelector("h2.woocommerce-order-data__heading");
@@ -172,6 +165,78 @@
     };
   }
 
+  function extractManualAddressFromExpandedSection(dialogRoot) {
+    // Find the destination address foldable card content
+    const cards = Array.from(
+      dialogRoot.querySelectorAll(".foldable-card.card"),
+    );
+    const destCard = cards.find((card) => {
+      const title = card.querySelector(".label-purchase-modal__step-title");
+      return title && /destination\s+address/i.test(title.textContent || "");
+    });
+
+    if (!destCard) {
+      console.warn("[Extract] Destination address card not found");
+      return null;
+    }
+
+    const content = destCard.querySelector(".foldable-card__content");
+    if (!content) {
+      console.warn("[Extract] Destination address content not found");
+      return null;
+    }
+
+    // Try to find input fields within the expanded content
+    // Look for inputs by their labels or common patterns
+    const getInputValue = (labelText) => {
+      const labels = Array.from(content.querySelectorAll("label"));
+      const label = labels.find((l) =>
+        (l.textContent || "").toLowerCase().includes(labelText.toLowerCase()),
+      );
+      if (!label) return "";
+
+      const forAttr = label.getAttribute("for");
+      if (forAttr) {
+        const input = content.querySelector(`#${forAttr}`);
+        return (input?.value || "").trim();
+      }
+
+      // Try to find input near the label
+      const input =
+        label.querySelector("input, select") ||
+        label.nextElementSibling?.querySelector("input, select");
+      return (input?.value || "").trim();
+    };
+
+    const fullName = getInputValue("name");
+    const company = getInputValue("company");
+    const phone = getInputValue("phone");
+    const address1 = getInputValue("address");
+    const city = getInputValue("city");
+    const state = getInputValue("state");
+    const postalCode = getInputValue("zip") || getInputValue("postal");
+    const countryRaw = getInputValue("country");
+
+    const { firstName, lastName } = splitName(fullName);
+
+    // Only return if we have at least an address
+    if (!address1) return null;
+
+    return {
+      firstName,
+      lastName,
+      company,
+      phone,
+      address1,
+      address2: "",
+      city,
+      state,
+      postalCode,
+      country: normalizeCountry(countryRaw),
+      _source: "manual",
+    };
+  }
+
   // function extractManualAddressFromDialog(dialogRoot) {
   //   // Your example: name="destination_address"
   //   const address1El =
@@ -234,6 +299,43 @@
   //   };
   // }
 
+  async function ensureDestinationAddressExpanded(dialogRoot) {
+    // Find the "Destination address" foldable card
+    const cards = Array.from(
+      dialogRoot.querySelectorAll(".foldable-card.card"),
+    );
+    const destCard = cards.find((card) => {
+      const title = card.querySelector(".label-purchase-modal__step-title");
+      return title && /destination\s+address/i.test(title.textContent || "");
+    });
+
+    if (!destCard) {
+      console.warn("[Expand] Destination address card not found");
+      return;
+    }
+
+    // Check if already expanded
+    if (destCard.classList.contains("is-expanded")) {
+      console.log("[Expand] Destination address already expanded");
+      return;
+    }
+
+    // Find and click the expand button
+    const expandBtn = destCard.querySelector(
+      "button.foldable-card__action.foldable-card__expand",
+    );
+    if (!expandBtn) {
+      console.warn("[Expand] Expand button not found");
+      return;
+    }
+
+    console.log("[Expand] Clicking destination address expand button");
+    expandBtn.click();
+
+    // Wait for expansion animation and content to render
+    await sleep(500);
+  }
+
   async function ensureDialogOpen() {
     // If the shipping label modal is already open, return it
     const existing = document.querySelector(
@@ -285,23 +387,22 @@
     return modal;
   }
 
-  // (Optional) if you still want email: ONLY inside dialog, robust search.
-  // async function readEmailFromDialog(dialogRoot) {
-  //   const direct =
-  //     dialogRoot.querySelector('input[name="destination-email"]') ||
-  //     dialogRoot.querySelector('input[name="destination_email"]') ||
-  //     dialogRoot.querySelector('input[type="email"]');
+  // function closeShippingLabelModal(modal) {
+  //   if (!modal) return false;
 
-  //   if (direct?.value) return direct.value.trim();
+  //   const closeBtn =
+  //     modal.querySelector('button[aria-label="Close dialog"]') ||
+  //     modal.querySelector(
+  //       'button.components-button.has-icon[aria-label="Close dialog"]',
+  //     );
 
-  //   const inputs = Array.from(dialogRoot.querySelectorAll("input"));
-  //   const emailLike = inputs.find((i) => {
-  //     const n = (i.getAttribute("name") || "").toLowerCase();
-  //     const id = (i.getAttribute("id") || "").toLowerCase();
-  //     return n.includes("email") || id.includes("email");
-  //   });
+  //   if (!closeBtn) {
+  //     console.warn("[Close modal] close button not found");
+  //     return false;
+  //   }
 
-  //   return (emailLike?.value || "").trim();
+  //   closeBtn.click();
+  //   return true;
   // }
 
   function logCopyFailure(reason, extra = {}) {
@@ -320,134 +421,6 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  // function pickDestinationFromArgs(args) {
-  //   // Prefer explicit shipping address (good structure)
-  //   const ship = args?.order?.shipping_address;
-  //   if (ship?.address_1 || ship?.postcode) {
-  //     return {
-  //       firstName: ship.first_name || "",
-  //       lastName: ship.last_name || "",
-  //       company: ship.company || "",
-  //       phone: args?.order?.billing_address?.phone || "",
-  //       address1: ship.address_1 || "",
-  //       address2: ship.address_2 || "",
-  //       city: ship.city || "",
-  //       state: ship.state || "",
-  //       postalCode: ship.postcode || "",
-  //       country: ship.country || "",
-  //     };
-  //   }
-
-  //   // Fallback: sometimes destination is in labelsState.destination
-  //   const dest = args?.labelsState?.destination;
-  //   if (dest?.address || dest?.postcode) {
-  //     const full = (dest.name || "").trim();
-  //     const [firstName, ...rest] = full.split(/\s+/);
-  //     return {
-  //       firstName: firstName || "",
-  //       lastName: rest.join(" "),
-  //       company: dest.company || "",
-  //       phone: dest.phone || "",
-  //       address1: dest.address || "",
-  //       address2: dest.address_2 || "",
-  //       city: dest.city || "",
-  //       state: dest.state || "",
-  //       postalCode: dest.postcode || "",
-  //       country: dest.country || "",
-  //     };
-  //   }
-
-  //   return null;
-  // }
-
-  // function readDestination() {
-  //   const el = document.querySelector(
-  //     ".wc-connect-create-shipping-label[data-args]",
-  //   );
-  //   if (!el) return null;
-
-  //   const raw = el.getAttribute("data-args");
-  //   if (!raw) return null;
-
-  //   const jsonStr = decodeHtmlEntities(raw);
-
-  //   let args;
-  //   try {
-  //     args = JSON.parse(jsonStr);
-  //   } catch (err) {
-  //     console.error(
-  //       "Failed to parse data-args JSON",
-  //       el,
-  //       jsonStr.slice(0, 200),
-  //     );
-  //     return null;
-  //   }
-  //   return pickDestinationFromArgs(args);
-  // }
-
-  // function injectButton() {
-  //   if (document.getElementById(BTN_ID)) return;
-
-  //   const btn = document.createElement("button");
-  //   btn.id = BTN_ID;
-  //   btn.textContent = UI.baseText;
-  //   btn.style.cssText = UI.baseStyle;
-
-  //   btn.addEventListener("click", async () => {
-  //     // Optimistic UI: prevent double clicks while saving
-  //     setButtonState(btn, { text: "Copying…", style: "", disable: true });
-
-  //     const destination = readDestination();
-  //     const orderNumber = readOrderNumber();
-
-  //     if (!destination) {
-  //       setButtonState(btn, {
-  //         text: "Open label dialog",
-  //         style: UI.errStyle,
-  //         disable: false,
-  //         autoResetMs: 1600,
-  //       });
-  //       return;
-  //     }
-
-  //     let email = "";
-  //     try {
-  //       email = await readEmailFromDialog();
-  //     } catch (e) {
-  //       // no dialogs; just log + continue
-  //       console.warn("Email not found in dialog", e);
-  //     }
-
-  //     const payload = { ...destination, orderNumber, email };
-
-  //     chrome.storage.local.set(
-  //       { wl_destination: payload, wl_savedAt: Date.now() },
-  //       () => {
-  //         const err = chrome.runtime?.lastError;
-  //         if (err) {
-  //           console.error("Storage set failed:", err);
-  //           setButtonState(btn, {
-  //             text: UI.errorText,
-  //             style: UI.errStyle,
-  //             disable: false,
-  //             autoResetMs: 1600,
-  //           });
-  //           return;
-  //         }
-
-  //         // Success: persist green "Copied ✅" until next click/page refresh
-  //         setButtonState(btn, {
-  //           text: UI.successText,
-  //           style: UI.okStyle,
-  //           disable: false,
-  //         });
-  //       },
-  //     );
-  //   });
-
-  //   document.body.appendChild(btn);
-  // }
-
   function injectButton() {
     if (document.getElementById(BTN_ID)) return;
 
@@ -458,18 +431,21 @@
 
     btn.addEventListener("click", async () => {
       setButtonState(btn, { text: "Copying…", style: "", disable: true });
-
+      let dialogRoot = null;
       try {
-        const dialogRoot = await ensureDialogOpen();
+        dialogRoot = await ensureDialogOpen();
 
         console.log("Dialog root: ", dialogRoot);
+
+        // Ensure destination address section is expanded
+        await ensureDestinationAddressExpanded(dialogRoot);
 
         // 1) Prefer Suggested address if present/selected
         let destination = extractSuggestedAddressFromDialog(dialogRoot);
 
-        // 2) Otherwise use the manual/verified input address
-        // if (!destination)
-        //   destination = extractManualAddressFromDialog(dialogRoot);
+        // 2) Otherwise use the manual address from expanded section
+        if (!destination)
+          destination = extractManualAddressFromExpandedSection(dialogRoot);
 
         if (!destination || !destination.address1) {
           throw new Error("No verified address found in dialog");
@@ -494,6 +470,10 @@
               style: UI.okStyle,
               disable: false,
             });
+
+            // ✅ close modal after copying
+            // const closed = closeShippingLabelModal(dialogRoot);
+            // console.log("[Close modal] attempted:", closed);
           },
         );
       } catch (e) {
